@@ -52,7 +52,7 @@ impl cosmic::Application for AppModel {
     type Message = Message;
 
     /// Unique identifier in RDNN (reverse domain name notation) format.
-    const APP_ID: &'static str = "com.github.kitfoxboy.cosmic-demo";
+    const APP_ID: &'static str = "com.github.kitfoxboy.cosmi-kit";
 
     fn core(&self) -> &cosmic::Core {
         &self.core
@@ -71,19 +71,19 @@ impl cosmic::Application for AppModel {
         let mut nav = nav_bar::Model::default();
 
         nav.insert()
-            .text(fl!("page-id", num = 1))
-            .data::<Page>(Page::Page1)
+            .text(fl!("oc-generator"))
+            .data::<Page>(Page::OCGenerator)
             .icon(icon::from_name("applications-science-symbolic"))
             .activate();
 
         nav.insert()
-            .text(fl!("page-id", num = 2))
-            .data::<Page>(Page::Page2)
+            .text(fl!("project-manager"))
+            .data::<Page>(Page::ProjectManager)
             .icon(icon::from_name("applications-system-symbolic"));
 
         nav.insert()
-            .text(fl!("page-id", num = 3))
-            .data::<Page>(Page::Page3)
+            .text(fl!("dice-roller"))
+            .data::<Page>(Page::DiceRoller)
             .icon(icon::from_name("applications-games-symbolic"));
 
         // Construct the app model with the runtime's core.
@@ -114,7 +114,7 @@ impl cosmic::Application for AppModel {
     }
 
     /// Elements to pack at the start of the header bar.
-    fn header_start(&self) -> Vec<Element<Self::Message>> {
+    fn header_start(&'_ self) -> Vec<Element<'_, Self::Message>> {
         let menu_bar = menu::bar(vec![menu::Tree::with_children(
             menu::root(fl!("view")).apply(Element::from),
             menu::items(
@@ -132,7 +132,7 @@ impl cosmic::Application for AppModel {
     }
 
     /// Display a context drawer if the context page is requested.
-    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Self::Message>> {
+    fn context_drawer(&'_ self) -> Option<context_drawer::ContextDrawer<'_, Self::Message>> {
         if !self.core.window.show_context {
             return None;
         }
@@ -150,14 +150,38 @@ impl cosmic::Application for AppModel {
     ///
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
-    fn view(&self) -> Element<Self::Message> {
-        widget::text::title1(fl!("welcome"))
-            .apply(widget::container)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(Horizontal::Center)
-            .align_y(Vertical::Center)
-            .into()
+    fn view(&'_ self) -> Element<'_, Self::Message> {
+        
+        match self.active_page() {
+            Some(Page::OCGenerator) => {
+                 widget::text::title1(fl!("oc-generator"))
+                .apply(widget::container)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Center)
+                .into()
+            },
+            Some(Page::ProjectManager) => {
+                 widget::text::title1(fl!("project-manager"))
+                .apply(widget::container)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Center)
+                .into()
+            },
+            Some(Page::DiceRoller) => {
+                 widget::text::title1(fl!("dice-roller"))
+                .apply(widget::container)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Center)
+                .into()
+            },
+            None => panic!("Invalid Page, if this happens you borked it real bad")
+        }
     }
 
     /// Register subscriptions for this application.
@@ -241,7 +265,7 @@ impl cosmic::Application for AppModel {
 
 impl AppModel {
     /// The about page for this app.
-    pub fn about(&self) -> Element<Message> {
+    pub fn about(&'_ self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
         let icon = widget::svg(widget::svg::Handle::from_memory(APP_ICON));
@@ -289,13 +313,18 @@ impl AppModel {
             Task::none()
         }
     }
+
+    pub fn active_page(&self) -> Option<Page> {
+        self.nav.data::<Page>(self.nav.active()).cloned()
+    }
 }
 
 /// The page to display in the application.
+#[derive(Clone)]
 pub enum Page {
-    Page1,
-    Page2,
-    Page3,
+    OCGenerator,
+    ProjectManager,
+    DiceRoller,
 }
 
 /// The context page to display in the context drawer.

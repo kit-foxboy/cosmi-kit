@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.github.kitfoxboy.cosmic-demo</id>
+  <id>com.github.kitfoxboy.cosmi-kit</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MPL-2.0</project_license>
-  <name>Cosmic Demo</name>
+  <name>Cosmi Kit</name>
   <summary>An application for the COSMIC™ desktop</summary>
   <icon type="remote" width="64" height="64" scale="1">
     https://github.com/pop-os/cosmic-app-template/raw/main/resources/icons/hicolor/scalable/apps/icon.svg
   </icon>
   <url type="vcs-browser">https://github.com/pop-os/cosmic-app-template</url>
-  <launchable type="desktop-id">com.github.kitfoxboy.cosmic-demo.desktop</launchable>
+  <launchable type="desktop-id">com.github.kitfoxboy.cosmi-kit.desktop</launchable>
   <provides>
-    <id>com.github.kitfoxboy.cosmic-demo</id>
+    <id>com.github.kitfoxboy.cosmi-kit</id>
     <binaries>
-      <binary>cosmic-demo</binary>
+      <binary>cosmi-kit</binary>
     </binaries>
   </provides>
   <requires>

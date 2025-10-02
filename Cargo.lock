@@ -987,6 +987,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmi-kit"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "i18n-embed 0.15.4",
+ "i18n-embed-fl 0.9.4",
+ "libcosmic",
+ "open",
+ "rust-embed",
+ "tokio",
+ "vergen",
+]
+
+[[package]]
 name = "cosmic-client-toolkit"
 version = "0.1.0"
 source = "git+https://github.com/pop-os/cosmic-protocols?rev=d0e95be#d0e95be25e423cfe523b11111a3666ed7aaf0dc4"
@@ -1027,20 +1041,6 @@ source = "git+https://github.com/pop-os/libcosmic.git#1c83be9d1c4e62123a8b6b2442
 dependencies = [
  "quote",
  "syn 2.0.106",
-]
-
-[[package]]
-name = "cosmic-demo"
-version = "0.1.0"
-dependencies = [
- "futures-util",
- "i18n-embed 0.15.4",
- "i18n-embed-fl 0.9.4",
- "libcosmic",
- "open",
- "rust-embed",
- "tokio",
- "vergen",
 ]
 
 [[package]]
@@ -5270,9 +5270,9 @@ dependencies = [
 
 [[package]]
 name = "typenum"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
+checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "uds_windows"

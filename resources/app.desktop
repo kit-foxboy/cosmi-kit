@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=Cosmic Demo
+Name=Cosmi Kit
 Comment=An application for the COSMIC™ desktop
 Type=Application
-Icon=com.github.kitfoxboy.cosmic-demo
-Exec=cosmic-demo %F
+Icon=com.github.kitfoxboy.cosmi-kit
+Exec=cosmi-kit %F
 Terminal=false
 StartupNotify=true
 Categories=COSMIC
