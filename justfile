@@ -1,5 +1,5 @@
-name := 'cosmic-demo'
-appid := 'com.github.kitfoxboy.cosmic-demo'
+name := 'cosmi-kit'
+appid := 'com.github.kitfoxboy.cosmi-kit'
 
 rootdir := ''
 prefix := '/usr'
