@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Cosmic Demo
+Comment=An application for the COSMIC™ desktop
+Type=Application
+Icon=com.github.kitfoxboy.cosmic-demo
+Exec=cosmic-demo %F
+Terminal=false
+StartupNotify=true
+Categories=COSMIC
+Keywords=COSMIC
+MimeType=
