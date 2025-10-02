@@ -176,6 +176,13 @@ This is a learning project, but contributions are welcome if you want to documen
 [mold]: https://github.com/rui314/mold
 [sccache]: https://github.com/mozilla/sccache
 
+## Ways to Connect
+The Flying Bucket Discord Server (not much now besides furry twitch streamers sharing stuff, but I'd love more devs in there): [Join here](https://discord.gg/RZvUMkhSuj)
+Twitch: where we do whatever my health permits: [Watch here](https://www.twitch.tv/teamsnowdog)
+Youtube Archive: hoping to do more reviews, tutorials, etc. [Watch here](https://www.youtube.com/@teamsnowdog)
+FurAffinity: if you're into furry stuff or want to know more about my stories [Check here](https://www.furaffinity.net/user/kit-kabbit/)
+Ko-fi: if you want to support me at all. Coding comms coming soon, not sure how to price them yet when it's usually a bespoke hourly rate [Check here](https://ko-fi.com/kitkabbit4209)
+
 ---
 
 *Happy coding, fellow fuzzbutts! 🦊✨*

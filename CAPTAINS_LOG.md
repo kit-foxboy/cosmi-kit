@@ -152,10 +152,3 @@ This is the same pattern as Redux, Vuex, or any modern state management! I prefe
 ## 🦊 You're Doing Great!
 
 Look, learning coding in any language is hard. Rust is a whole different animal. I'm an experienced full stack web dev and Rust makes me feel like my first programming class in college when I basically only knew HTML. Don't give in to that feeling that none of it makes sense and you're just copying and pasting. That's a normal phase learning huge new things. Push buttons. Blow shit up. Connect with me if you'd like, I'm trying to expand my little streaming and art community to include more dev stuff. We feel better when in the trenches together.
-
-## Ways to Connect
-The Flying Bucket Discord Server (not much now besides furry twitch streamers sharing stuff, but I'd love more devs in there): [Join here](https://discord.gg/RZvUMkhSuj)
-Twitch: where we do whatever my health permits: [Watch here](https://www.twitch.tv/teamsnowdog)
-Youtube Archive: hoping to do more reviews, tutorials, etc. [Watch here](https://www.youtube.com/@teamsnowdog)
-FurAffinity: if you're into furry stuff or want to know more about my stories [Check here](https://www.furaffinity.net/user/kit-kabbit/)
-Ko-fi: if you want to support me at all. Coding comms coming soon, not sure how to price them yet when it's usually a bespoke hourly rate [Check here](https://ko-fi.com/kitkabbit4209)
