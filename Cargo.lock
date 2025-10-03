@@ -990,6 +990,7 @@ dependencies = [
 name = "cosmi-kit"
 version = "0.1.0"
 dependencies = [
+ "fastrand 2.3.0",
  "futures-util",
  "i18n-embed 0.15.4",
  "i18n-embed-fl 0.9.4",

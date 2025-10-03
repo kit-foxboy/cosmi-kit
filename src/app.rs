@@ -12,6 +12,8 @@ use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
 use std::collections::HashMap;
 
+use crate::pages::{oc_generator, OcGeneratorPage};
+
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
 
@@ -28,16 +30,26 @@ pub struct AppModel {
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     // Configuration data that persists between application runs.
     config: Config,
+    // OC generator page
+    oc_generator_page: oc_generator::OcGeneratorPage
 }
 
 /// Messages emitted by the application and its widgets.
 #[derive(Debug, Clone)]
 pub enum Message {
+    OcGeneratorPage(oc_generator::Message),
     OpenRepositoryUrl,
     SubscriptionChannel,
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     LaunchUrl(String),
+}
+
+/// Hook the page messages into the app's
+impl From<oc_generator::Message> for Message {
+    fn from(message: oc_generator::Message) -> Self {
+        Self::OcGeneratorPage(message)
+    }
 }
 
 /// Create a COSMIC application from the app model
@@ -90,6 +102,7 @@ impl cosmic::Application for AppModel {
         let mut app = AppModel {
             core,
             context_page: ContextPage::default(),
+            oc_generator_page: OcGeneratorPage::default(),
             nav,
             key_binds: HashMap::new(),
             // Optional configuration file for an application.
@@ -153,15 +166,7 @@ impl cosmic::Application for AppModel {
     fn view(&'_ self) -> Element<'_, Self::Message> {
         
         match self.active_page() {
-            Some(Page::OCGenerator) => {
-                 widget::text::title1(fl!("oc-generator"))
-                .apply(widget::container)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(Horizontal::Center)
-                .align_y(Vertical::Center)
-                .into()
-            },
+            Some(Page::OCGenerator) => self.oc_generator_page.view().map(Message::OcGeneratorPage),
             Some(Page::ProjectManager) => {
                  widget::text::title1(fl!("project-manager"))
                 .apply(widget::container)
@@ -221,6 +226,12 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
+            Message::OcGeneratorPage(page_message) => {
+                //Make the page active
+                // return self.oc_generator_page.update(page_message);
+                let _ = self.oc_generator_page.update(page_message);
+            }
+
             Message::OpenRepositoryUrl => {
                 _ = open::that_detached(REPOSITORY);
             }
