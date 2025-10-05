@@ -67,3 +67,6 @@ characteristic-collects-bad-jokes = who collects dad jokes religiously
 characteristic-vore = who turns every meal into a vore joke
 characteristic-ponytail = with long hair bound into a ponytail
 characteristic-sparkle = whose fur has so many shades it makes sparkledogs blush
+oc-generator = OC generator
+project-manager = Project manager
+dice-roller = Dice Roller
