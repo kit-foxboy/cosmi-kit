@@ -123,7 +123,13 @@ impl cosmic::Application for AppModel {
         // Create a startup command that sets the window title.
         let command = app.update_title();
 
-        (app, command)
+        // Create a batch of tasks to run at startup.
+        let mut tasks = vec![command];
+
+         // load data for the page if needed
+        tasks.push(app.load_page_data());
+
+        (app, Task::batch(tasks))
     }
 
     /// Elements to pack at the start of the header bar.
@@ -142,6 +148,21 @@ impl cosmic::Application for AppModel {
     /// Enables the COSMIC application to create a nav bar with this model.
     fn nav_model(&self) -> Option<&nav_bar::Model> {
         Some(&self.nav)
+    }
+
+    /// Nav item selected handler, called when a nav item is selected as a lifecycle event.
+    fn on_nav_select(&mut self, id: nav_bar::Id) -> Task<cosmic::Action<Self::Message>> {
+        // Activate the page in the model.
+        self.nav.activate(id);
+
+        // Create a command to update the window title,
+        // we'll also load data for the page if needed as a batch of tasks
+        let mut tasks = vec![self.update_title()];
+
+        // load data for the page if needed
+        tasks.push(self.load_page_data());
+
+        Task::batch(tasks)
     }
 
     /// Display a context drawer if the context page is requested.
@@ -264,14 +285,6 @@ impl cosmic::Application for AppModel {
         }
         Task::none()
     }
-
-    /// Called when a nav item is selected.
-    fn on_nav_select(&mut self, id: nav_bar::Id) -> Task<cosmic::Action<Self::Message>> {
-        // Activate the page in the model.
-        self.nav.activate(id);
-
-        self.update_title()
-    }
 }
 
 impl AppModel {
@@ -327,6 +340,18 @@ impl AppModel {
 
     pub fn active_page(&self) -> Option<Page> {
         self.nav.data::<Page>(self.nav.active()).cloned()
+    }
+
+    // Helper method for loading page data if needed
+    fn load_page_data(&self) -> Task<cosmic::Action<Message>> {
+        // Note: Match statements are more verbose but easier to extend later than chain if lets
+        match self.active_page() {
+            Some(Page::OCGenerator) => {
+                // Convert the page message to app message and trigger loading
+                Task::done(cosmic::Action::App(Message::OcGeneratorPage(oc_generator::Message::LoadData)))
+            }
+            _ => Task::none()
+        }
     }
 }
 
