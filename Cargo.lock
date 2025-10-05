@@ -990,6 +990,7 @@ dependencies = [
 name = "cosmi-kit"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "fastrand 2.3.0",
  "futures-util",
  "i18n-embed 0.15.4",
@@ -997,6 +998,8 @@ dependencies = [
  "libcosmic",
  "open",
  "rust-embed",
+ "serde",
+ "serde_json",
  "tokio",
  "vergen",
 ]
