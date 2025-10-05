@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use crate::config::Config;
+use crate::database::SqliteDatabase;
 use crate::fl;
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
@@ -11,8 +12,9 @@ use cosmic::widget::{self, icon, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
 use std::collections::HashMap;
+use anyhow::Result;
 
-use crate::pages::{oc_generator, OcGeneratorPage};
+use crate::pages::{oc_generator, project_manager, ProjectManagerPage, OcGeneratorPage};
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
@@ -30,14 +32,20 @@ pub struct AppModel {
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     // Configuration data that persists between application runs.
     config: Config,
-    // OC generator page
-    oc_generator_page: oc_generator::OcGeneratorPage
+    // Data layer - handles all data operations (database, caching, etc.)
+    // Pages don't touch the database directly - they go through AppData!
+    app_data: crate::app_data::AppData,
+    // pages (just UI and state management)
+    oc_generator_page: oc_generator::OcGeneratorPage,
+    project_manager_page: ProjectManagerPage,
 }
 
 /// Messages emitted by the application and its widgets.
 #[derive(Debug, Clone)]
 pub enum Message {
     OcGeneratorPage(oc_generator::Message),
+    ProjectManagerPage(crate::pages::project_manager::Message),
+    DatabaseInitialized(Result<SqliteDatabase, String>),
     OpenRepositoryUrl,
     SubscriptionChannel,
     ToggleContextPage(ContextPage),
@@ -49,6 +57,12 @@ pub enum Message {
 impl From<oc_generator::Message> for Message {
     fn from(message: oc_generator::Message) -> Self {
         Self::OcGeneratorPage(message)
+    }
+}
+
+impl From<crate::pages::project_manager::Message> for Message {
+    fn from(message: crate::pages::project_manager::Message) -> Self {
+        Self::ProjectManagerPage(message)
     }
 }
 
@@ -103,6 +117,8 @@ impl cosmic::Application for AppModel {
             core,
             context_page: ContextPage::default(),
             oc_generator_page: OcGeneratorPage::default(),
+            project_manager_page: ProjectManagerPage::default(),
+            app_data: crate::app_data::AppData::new(),  // Data layer initialized (no database yet)
             nav,
             key_binds: HashMap::new(),
             // Optional configuration file for an application.
@@ -126,8 +142,18 @@ impl cosmic::Application for AppModel {
         // Create a batch of tasks to run at startup.
         let mut tasks = vec![command];
 
-         // load data for the page if needed
-        tasks.push(app.load_page_data());
+        // Initialize database asynchronously - this runs ONCE at startup
+        // The connection pool will be stored in AppModel and reused!
+        tasks.push(Task::perform(
+            async move {
+                SqliteDatabase::new().await
+                    .map_err(|e| e.to_string())
+            },
+            |result| cosmic::Action::App(Message::DatabaseInitialized(result))
+        ));
+
+        // Note: We DON'T load page data here because database isn't ready yet!
+        // Page data loading happens AFTER DatabaseInitialized message.
 
         (app, Task::batch(tasks))
     }
@@ -188,15 +214,7 @@ impl cosmic::Application for AppModel {
         
         match self.active_page() {
             Some(Page::OCGenerator) => self.oc_generator_page.view().map(Message::OcGeneratorPage),
-            Some(Page::ProjectManager) => {
-                 widget::text::title1(fl!("project-manager"))
-                .apply(widget::container)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(Horizontal::Center)
-                .align_y(Vertical::Center)
-                .into()
-            },
+            Some(Page::ProjectManager) => self.project_manager_page.view().map(Message::ProjectManagerPage),
             Some(Page::DiceRoller) => {
                  widget::text::title1(fl!("dice-roller"))
                 .apply(widget::container)
@@ -247,10 +265,28 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
+            Message::DatabaseInitialized(result) => {
+                match result {
+                    Ok(db) => {
+                        eprintln!("Database initialized successfully!");
+                        self.app_data.set_database(db);
+                        // Now that database is ready, load the active page's data
+                        return self.load_page_data();
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize database: {}", e);
+                        // Continue without database - pages will handle the None case
+                    }
+                }
+            }
+
             Message::OcGeneratorPage(page_message) => {
-                //Make the page active
-                // return self.oc_generator_page.update(page_message);
                 let _ = self.oc_generator_page.update(page_message);
+            }
+
+            Message::ProjectManagerPage(page_message) => {
+                // Handle data operations here in app.rs, then update page state
+                return self.handle_project_manager_message(page_message);
             }
 
             Message::OpenRepositoryUrl => {
@@ -350,7 +386,63 @@ impl AppModel {
                 // Convert the page message to app message and trigger loading
                 Task::done(cosmic::Action::App(Message::OcGeneratorPage(oc_generator::Message::LoadData)))
             }
+            Some(Page::ProjectManager) => {
+                // Project manager needs to load projects from database
+                Task::done(cosmic::Action::App(Message::ProjectManagerPage(project_manager::Message::LoadData)))
+            }
             _ => Task::none()
+        }
+    }
+
+    // Handle Project Manager messages - this is where data operations happen!
+    fn handle_project_manager_message(
+        &mut self,
+        message: project_manager::Message,
+    ) -> Task<cosmic::Action<Message>> {
+        use project_manager::Message as PM; //Note: Useful to avoid naming conflicts. I dislike managing crates thus far tbh
+
+        match message {
+            PM::LoadData => {
+                // Trigger async data load from AppData
+                let app_data = self.app_data.clone();  // TODO: We need to make AppData cloneable
+                Task::perform(
+                    async move {
+                        app_data.load_projects().await
+                            .map_err(|e| e.to_string())
+                    },
+                    |result| cosmic::Action::App(Message::ProjectManagerPage(PM::ProjectsLoaded(result)))
+                )
+            }
+
+            // PM::CreateProject(name, description) => {
+            //     // Trigger async project creation
+            //     let app_data = self.app_data.clone();
+            //     Task::perform(
+            //         async move {
+            //             app_data.create_project(name, description).await
+            //                 .map_err(|e| e.to_string())
+            //         },
+            //         |result| cosmic::Action::App(Message::ProjectManagerPage(PM::ProjectCreated(result)))
+            //     )
+            // }
+
+            // PM::DeleteProject(id) => {
+            //     // Trigger async project deletion
+            //     let app_data = self.app_data.clone();
+            //     Task::perform(
+            //         async move {
+            //             app_data.delete_project(id).await
+            //                 .map_err(|e| e.to_string())
+            //         },
+            //         |result| cosmic::Action::App(Message::ProjectManagerPage(PM::ProjectDeleted(result)))
+            //     )
+            // }
+
+            // All other messages just update UI state - delegate to page
+            _ => {
+                self.project_manager_page.update(message);
+                Task::none()
+            }
         }
     }
 }

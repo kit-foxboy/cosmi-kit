@@ -5,44 +5,46 @@
 //! Track development projects, tasks, and progress with a simple kanban-style interface
 
 use cosmic::prelude::*;
-use cosmic::widget::{self, button, column, container, row, text, text_input, checkbox};
-use cosmic::iced::{Alignment, Length};
+use cosmic::widget::{self, container, text};
+use cosmic::iced::Length;
 use crate::fl;
 
-/// Messages that the Project Manager page can emit
+use crate::database::{Project, Tag, Feature, ProjectTags, ProjectFeatures};
+
+/// Messages that the Project Manager page can emit, breaking down async vs UI state
 #[derive(Debug, Clone)]
 pub enum Message {
-    // TODO: Define your message types
-    // Consider what actions users can take:
-    // - Add new projects?
-    // - Edit existing ones?
-    // - Mark as complete?
-    // - Delete projects?
-}
-
-/// A simple project item structure
-#[derive(Debug, Clone)]
-pub struct ProjectItem {
-    // TODO: What fields does a project need?
-    // - Name/title?
-    // - Completion status?
-    // - Priority level?
-    // - Due date?
+    // Trigger async operations
+    LoadData,
+    
+    // Results from async operations
+    ProjectsLoaded(Result<Vec<(Project, ProjectTags, ProjectFeatures)>, String>),
+    ProjectCreated(Result<Project, String>),
+    ProjectDeleted(Result<(), String>),
 }
 
 /// State for the Project Manager page
 pub struct ProjectManagerPage {
-    // TODO: What state does this page need?
-    // - List of projects?
-    // - Input field for new projects?
-    // - Filter/view settings?
+    // Data from database
+    projects: Vec<(Project, ProjectTags, ProjectFeatures)>,
+    
+    // UI state
+    new_project_name: String,
+    new_project_description: String,
+    show_add_project_dialog: bool,
+    is_loading: bool,
+    error_message: Option<String>,
 }
 
 impl Default for ProjectManagerPage {
     fn default() -> Self {
         Self {
-            // TODO: Set up initial state
-            // Maybe start with some example projects?
+            projects: Vec::new(),
+            new_project_name: String::new(),
+            new_project_description: String::new(),
+            show_add_project_dialog: false,
+            is_loading: false,
+            error_message: None,
         }
     }
 }
@@ -50,48 +52,84 @@ impl Default for ProjectManagerPage {
 impl ProjectManagerPage {
     /// Create the view for this page
     pub fn view(&self) -> Element<Message> {
-        // TODO: Build your project management UI
-        //
-        // Suggested sections:
-        // 1. Page header with title
-        // 2. Input area for adding new projects
-        // 3. List of existing projects (maybe with checkboxes?)
-        // 4. Summary stats or action buttons
-        //
-        // UI Widget Tips:
-        // - checkbox() for toggleable items
-        // - text_input().on_submit() for quick add
-        // - button::destructive() for delete actions
-        // - Use .enumerate() in fold() to get indices for list items
-
-        widget::text::title1("TODO: Build the Project Manager UI!")
+        // TODO: Build your full UI
+        widget::text::title1("Project Manager - Loading...")
             .apply(widget::container)
             .width(Length::Fill)
             .height(Length::Fill)
-            .center_x()
-            .center_y()
             .into()
     }
 
     /// Handle messages for this page
-    pub fn update(&mut self, message: Message) -> cosmic::Task<cosmic::Action<Message>> {
+    /// 
+    /// This method ONLY handles UI state updates.
+    /// Data operations (LoadData, CreateProject, etc.) are handled by AppModel.
+    pub fn update(&mut self, message: Message) {
         match message {
-            // TODO: Implement your message handlers
-            //
-            // Common patterns:
-            // - For adding: create new item, push to vec, clear input
-            // - For toggling: find item by index, flip boolean
-            // - For removing: use vec.remove(index)
-            // - For filtering: use vec.retain(|item| condition)
+            // Data request messages - set loading state, AppModel will handle actual work
+            Message::LoadData => {
+                self.is_loading = true;
+                // AppModel will trigger the actual async load
+            }
+            
+            // Data result messages - update UI state with results
+            Message::ProjectsLoaded(result) => {
+                self.is_loading = false;
+                match result {
+                    Ok(projects) => {
+                        self.projects = projects;
+                        self.error_message = None;
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to load projects: {}", e));
+                    }
+                }
+            }
+            
+            Message::ProjectCreated(result) => {
+                self.is_loading = false;
+                match result {
+                    Ok(_project) => {
+                        self.new_project_name.clear();
+                        self.new_project_description.clear();
+                        self.show_add_project_dialog = false;
+                        // AppModel will reload projects automatically
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to create project: {}", e));
+                    }
+                }
+            }
+            
+            Message::ProjectDeleted(result) => {
+                self.is_loading = false;
+                match result {
+                    Ok(()) => {
+                        self.error_message = None;
+                        // AppModel will reload projects automatically
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to delete project: {}", e));
+                    }
+                }
+            }
         }
-        
-        cosmic::Task::none()
     }
-
-    // TODO: Add helper methods
-    // Examples:
-    // - fn total_projects(&self) -> usize
-    // - fn completed_projects(&self) -> usize  
-    // - fn clear_completed(&mut self)
-    // - fn is_valid_project_name(&self, name: &str) -> bool
+    
+    // Helper methods for UI logic
+    
+    /// Get total number of projects
+    pub fn total_projects(&self) -> usize {
+        self.projects.len()
+    }
+    
+    /// Check if a project name is valid (not empty, reasonable length)
+    pub fn is_valid_project_name(name: &str) -> bool {
+        !name.trim().is_empty() && name.len() <= 100
+    }
+    
+    // TODO: Add more helper methods as needed
+    // - fn completed_features_count(&self, project_id: i64) -> usize
+    // - fn project_by_id(&self, id: i64) -> Option<&Project>
+    // - fn format_project_summary(&self, project: &Project) -> String
 }

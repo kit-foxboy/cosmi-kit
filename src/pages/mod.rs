@@ -9,10 +9,10 @@
 //! - Business logic
 
 pub mod oc_generator;
-//pub mod project_manager;
+pub mod project_manager;
 //pub mod dice_roller;
 
 // Re-export the main types for convenience
 pub use oc_generator::OcGeneratorPage;
-//pub use project_manager::ProjectManagerPage;
+pub use project_manager::ProjectManagerPage;
 //pub use dice_roller::DiceRollerPage;
