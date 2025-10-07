@@ -286,6 +286,7 @@ impl cosmic::Application for AppModel {
 
             Message::ProjectManagerPage(page_message) => {
                 // Handle data operations here in app.rs, then update page state
+                // This keeps the page decoupled from data layer
                 return self.handle_project_manager_message(page_message);
             }
 

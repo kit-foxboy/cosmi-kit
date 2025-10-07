@@ -10,7 +10,7 @@ pub type ProjectJoin = HashMap<ProjectId, (Project, ProjectTags, ProjectFeatures
 pub type Time = i64; // Unix epoch timestamp, my preferred database time format
 
 /// Project data structure
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Project {
     pub id: i64,
     pub name: String,
@@ -19,13 +19,14 @@ pub struct Project {
 }
 
 /// Tag for categorizing projects
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Tag {
     pub id: i64,
     pub name: String,
+    pub color: Option<String>,  // Optional hex color
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct ProjectTag {
     pub id: i64,
     pub project_id: i64,
@@ -33,12 +34,13 @@ pub struct ProjectTag {
 }
 
 /// Project feature/task
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Feature {
     pub id: i64,
     pub project_id: i64,
-    pub description:Option<String>,
+    pub description: String,  // Made required to match SQL schema
     pub completed: bool,
+    pub created_at: i64,
 }
 
 /// Trait that any database backend must implement

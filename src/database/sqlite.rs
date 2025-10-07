@@ -49,7 +49,13 @@ impl SqliteDatabase {
         let db_url = format!("sqlite://{}", db_path_str);
         let pool = SqlitePool::connect(&db_url).await?;
         
-        // TODO: Run migrations here
+        // Run migrations - this is idempotent (safe to run multiple times)
+        // sqlx will track which migrations have been applied in a table called _sqlx_migrations
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await?;
+        
+        println!("Database migrations completed successfully");
         
         Ok(Self { pool })
     }
@@ -58,10 +64,69 @@ impl SqliteDatabase {
 #[async_trait::async_trait]
 impl ProjectDatabase for SqliteDatabase {
     async fn create_project(&mut self, name: String, description: Option<String>) -> Result<Project> {
-        todo!("Implement create_project")
+        // Insert the project and get the ID
+        let result = sqlx::query(
+            "INSERT INTO projects (name, description) VALUES (?, ?)"
+        )
+        .bind(&name)
+        .bind(&description)
+        .execute(&self.pool)
+        .await?;
+        
+        let project_id = result.last_insert_rowid();
+        
+        // Fetch the created project to return it
+        let project = sqlx::query_as::<_, Project>(
+            "SELECT id, name, description, created_at FROM projects WHERE id = ?"
+        )
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await?;
+        
+        Ok(project)
     }
     async fn get_all_projects(&self) -> Result<Vec<(Project, ProjectTags, ProjectFeatures)>> {
-        todo!("Implement get_all_projects")
+        // First, get all projects
+        // on a larger dataset, I'd join tags and features in a single query
+        // returning a flattened structure and then group in Rust
+        // but for simplicity and small datasets of many small projects, this is fine
+        let projects = sqlx::query_as::<_, Project>(
+            "SELECT id, name, description, created_at FROM projects ORDER BY created_at DESC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        
+        // For each project, fetch its tags and features
+        let mut result = Vec::new();
+        for project in projects {
+            // Get tags for this project
+            let tags = sqlx::query_as::<_, Tag>(
+                r#"
+                SELECT t.id, t.name, t.color
+                FROM tags t
+                INNER JOIN project_tags pt ON t.id = pt.tag_id
+                WHERE pt.project_id = ?
+                "#
+            )
+            .bind(project.id)
+            .fetch_all(&self.pool)
+            .await?;
+            
+            // Get features for this project
+            let features = sqlx::query_as::<_, Feature>(
+                "SELECT id, project_id, description, completed, created_at 
+                 FROM features 
+                 WHERE project_id = ?
+                 ORDER BY created_at DESC"
+            )
+            .bind(project.id)
+            .fetch_all(&self.pool)
+            .await?;
+            
+            result.push((project, tags, features));
+        }
+        
+        Ok(result)
     }
     async fn delete_project(&mut self, id: i64) -> Result<()> {
         todo!("Implement delete_project")
