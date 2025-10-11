@@ -1,7 +1,7 @@
 use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use anyhow::Result;
 
-use crate::database::{ProjectDatabase, ProjectFeatures, ProjectTags};
+use crate::database::{ProjectDatabase, ProjectJoin};
 use super::{Project, Tag, Feature};
 
 // Database versioning - increment when schema changes
@@ -85,7 +85,7 @@ impl ProjectDatabase for SqliteDatabase {
         
         Ok(project)
     }
-    async fn get_all_projects(&self) -> Result<Vec<(Project, ProjectTags, ProjectFeatures)>> {
+    async fn get_all_projects(&self) -> Result<Vec<ProjectJoin>> {
         // First, get all projects
         // on a larger dataset, I'd join tags and features in a single query
         // returning a flattened structure and then group in Rust
@@ -97,7 +97,7 @@ impl ProjectDatabase for SqliteDatabase {
         .await?;
         
         // For each project, fetch its tags and features
-        let mut result = Vec::new();
+        let mut result = vec![];
         for project in projects {
             // Get tags for this project
             let tags = sqlx::query_as::<_, Tag>(
@@ -123,38 +123,40 @@ impl ProjectDatabase for SqliteDatabase {
             .fetch_all(&self.pool)
             .await?;
             
-            result.push((project, tags, features));
+            let mut project_join = ProjectJoin::new();
+            project_join.insert(project.id, (project.clone(), tags.clone(), features.clone()));
+            result.push(project_join);
         }
         
         Ok(result)
     }
-    async fn delete_project(&mut self, id: i64) -> Result<()> {
+    async fn delete_project(&mut self, _id: i64) -> Result<()> {
         todo!("Implement delete_project")
     }
 
-    async fn create_tag(&mut self, name: String) -> Result<Tag> {
+    async fn create_tag(&mut self, _name: String) -> Result<Tag> {
         todo!("Implement create_tag")
     }
     async fn get_all_tags(&self) -> Result<Vec<Tag>> {
         todo!("Implement get_all_tags")
     }
-    async fn get_project_tags(&self, project_id: i64) -> Result<Vec<Tag>> {
+    async fn get_project_tags(&self, _project_id: i64) -> Result<Vec<Tag>> {
         todo!("Implement get_project_tags")
     }
-    async fn add_tag_to_project(&mut self, project_id: i64, tag_id: i64) -> Result<()> {
+    async fn add_tag_to_project(&mut self, _project_id: i64, _tag_id: i64) -> Result<()> {
         todo!("Implement add_tag_to_project")
     }
-    async fn remove_tag_from_project(&mut self, project_id: i64, tag_id: i64) -> Result<()> {
+    async fn remove_tag_from_project(&mut self, _project_id: i64, _tag_id: i64) -> Result<()> {
         todo!("Implement remove_tag_from_project")
     }
 
-    async fn add_feature(&mut self, project_id: i64, description: String) -> Result<Feature> {
+    async fn add_feature(&mut self, _project_id: i64, _description: String) -> Result<Feature> {
         todo!("Implement add_feature")
     }
-    async fn get_project_features(&self, project_id: i64) -> Result<Vec<Feature>> {
+    async fn get_project_features(&self, _project_id: i64) -> Result<Vec<Feature>> {
         todo!("Implement get_project_features")
     }
-    async fn remove_feature(&mut self, feature_id: i64) -> Result<()> {
+    async fn remove_feature(&mut self, _feature_id: i64) -> Result<()> {
         todo!("Implement remove_feature")
     }
 }

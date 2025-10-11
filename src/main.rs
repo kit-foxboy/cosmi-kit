@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 
-mod app;
-mod app_data;
+mod application;
 mod config;
 mod database;
 mod i18n;
 mod pages;
+
+use application::AppModel;
 
 fn main() -> cosmic::iced::Result {
     // Get the system's preferred languages.
@@ -22,5 +23,5 @@ fn main() -> cosmic::iced::Result {
     );
 
     // Starts the application's event loop with `()` as the application's flags.
-    cosmic::app::run::<app::AppModel>(settings, ())
+    cosmic::app::run::<AppModel>(settings, ())
 }

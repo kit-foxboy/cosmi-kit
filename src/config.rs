@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use cosmic::cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, ConfigGet, ConfigSet, CosmicConfigEntry};
-use crate::pages::oc_generator::SavedOC;
+
+use crate::application::app_data::SavedOC;
 
 #[derive(Debug, Default, Clone, CosmicConfigEntry, Eq, PartialEq)]
 #[version = 1]
@@ -16,6 +17,7 @@ pub struct SavedCharactersConfig {
 
 pub const CONFIG_KEY: &str = "com.github.kitfoxboy.cosmi-kit";
 
+
 impl CosmicConfigEntry for SavedCharactersConfig {
     const VERSION: u64 = 1;
     
@@ -29,8 +31,8 @@ impl CosmicConfigEntry for SavedCharactersConfig {
     
     fn update_keys<T: AsRef<str>>(
         &mut self,
-        config: &cosmic_config::Config,
-        changed_keys: &[T],
+        _config: &cosmic_config::Config,
+        _changed_keys: &[T],
     ) -> (Vec<cosmic_config::Error>, Vec<&'static str>) {
         todo!("Figure out what this function is for and when it gets called lol");
     }

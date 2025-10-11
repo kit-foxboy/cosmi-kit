@@ -1,70 +1,18 @@
+use crate::pages::context_pages::NewProjectMessage;
 // SPDX-License-Identifier: MPL-2.0
-
-use crate::config::Config;
-use crate::database::SqliteDatabase;
-use crate::fl;
+use crate::{fl, pages::*};
 use cosmic::app::context_drawer;
-use cosmic::cosmic_config::{self, CosmicConfigEntry};
+use cosmic::cosmic_config::CosmicConfigEntry;
 use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::{Alignment, Length, Subscription};
-use cosmic::prelude::*;
-use cosmic::widget::{self, icon, menu, nav_bar};
-use cosmic::{cosmic_theme, theme};
+use cosmic::widget::{self, icon};
+use cosmic::{cosmic_config, cosmic_theme, prelude::*, theme};
 use futures_util::SinkExt;
 use std::collections::HashMap;
-use anyhow::Result;
 
-use crate::pages::{oc_generator, project_manager, ProjectManagerPage, OcGeneratorPage};
-
-const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
-const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
-
-/// The application model stores app-specific state used to describe its interface and
-/// drive its logic.
-pub struct AppModel {
-    /// Application state which is managed by the COSMIC runtime.
-    core: cosmic::Core,
-    /// Display a context drawer with the designated page if defined.
-    context_page: ContextPage,
-    /// Contains items assigned to the nav bar panel.
-    nav: nav_bar::Model,
-    /// Key bindings for the application's menu bar.
-    key_binds: HashMap<menu::KeyBind, MenuAction>,
-    // Configuration data that persists between application runs.
-    config: Config,
-    // Data layer - handles all data operations (database, caching, etc.)
-    // Pages don't touch the database directly - they go through AppData!
-    app_data: crate::app_data::AppData,
-    // pages (just UI and state management)
-    oc_generator_page: oc_generator::OcGeneratorPage,
-    project_manager_page: ProjectManagerPage,
-}
-
-/// Messages emitted by the application and its widgets.
-#[derive(Debug, Clone)]
-pub enum Message {
-    OcGeneratorPage(oc_generator::Message),
-    ProjectManagerPage(crate::pages::project_manager::Message),
-    DatabaseInitialized(Result<SqliteDatabase, String>),
-    OpenRepositoryUrl,
-    SubscriptionChannel,
-    ToggleContextPage(ContextPage),
-    UpdateConfig(Config),
-    LaunchUrl(String),
-}
-
-/// Hook the page messages into the app's
-impl From<oc_generator::Message> for Message {
-    fn from(message: oc_generator::Message) -> Self {
-        Self::OcGeneratorPage(message)
-    }
-}
-
-impl From<crate::pages::project_manager::Message> for Message {
-    fn from(message: crate::pages::project_manager::Message) -> Self {
-        Self::ProjectManagerPage(message)
-    }
-}
+use crate::application::*;
+use crate::config::Config;
+use crate::database::SqliteDatabase;
 
 /// Create a COSMIC application from the app model
 impl cosmic::Application for AppModel {
@@ -112,15 +60,19 @@ impl cosmic::Application for AppModel {
             .data::<Page>(Page::DiceRoller)
             .icon(icon::from_name("applications-games-symbolic"));
 
+        // Set up keyboard shortcuts
+        // (Currently no app-level shortcuts; pages can have their own)
+        let key_binds = HashMap::new();
+
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
             core,
             context_page: ContextPage::default(),
             oc_generator_page: OcGeneratorPage::default(),
             project_manager_page: ProjectManagerPage::default(),
-            app_data: crate::app_data::AppData::new(),  // Data layer initialized (no database yet)
+            app_data: app_data::AppData::new(), // Data layer initialized (no database yet)
             nav,
-            key_binds: HashMap::new(),
+            key_binds,
             // Optional configuration file for an application.
             config: cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
                 .map(|context| match Config::get_entry(&context) {
@@ -145,11 +97,8 @@ impl cosmic::Application for AppModel {
         // Initialize database asynchronously - this runs ONCE at startup
         // The connection pool will be stored in AppModel and reused!
         tasks.push(Task::perform(
-            async move {
-                SqliteDatabase::new().await
-                    .map_err(|e| e.to_string())
-            },
-            |result| cosmic::Action::App(Message::DatabaseInitialized(result))
+            async move { SqliteDatabase::new().await.map_err(|e| e.to_string()) },
+            |result| cosmic::Action::App(Message::DatabaseInitialized(result)),
         ));
 
         // Note: We DON'T load page data here because database isn't ready yet!
@@ -171,6 +120,7 @@ impl cosmic::Application for AppModel {
         vec![menu_bar.into()]
     }
 
+    /// Elements to pack at the end of the header bar.
     /// Enables the COSMIC application to create a nav bar with this model.
     fn nav_model(&self) -> Option<&nav_bar::Model> {
         Some(&self.nav)
@@ -197,12 +147,22 @@ impl cosmic::Application for AppModel {
             return None;
         }
 
+        // All context drawers are handled at app level
         Some(match self.context_page {
             ContextPage::About => context_drawer::context_drawer(
                 self.about(),
                 Message::ToggleContextPage(ContextPage::About),
             )
             .title(fl!("about")),
+
+            ContextPage::NewProject => context_drawer::context_drawer(
+                self.project_manager_page
+                    .new_project_form
+                    .view()
+                    .map(Message::NewProjectPage),
+                Message::ToggleContextPage(ContextPage::NewProject),
+            )
+            .title(self.project_manager_page.new_project_form.title.clone()),
         })
     }
 
@@ -211,20 +171,20 @@ impl cosmic::Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view(&'_ self) -> Element<'_, Self::Message> {
-        
         match self.active_page() {
             Some(Page::OCGenerator) => self.oc_generator_page.view().map(Message::OcGeneratorPage),
-            Some(Page::ProjectManager) => self.project_manager_page.view().map(Message::ProjectManagerPage),
-            Some(Page::DiceRoller) => {
-                 widget::text::title1(fl!("dice-roller"))
+            Some(Page::ProjectManager) => self
+                .project_manager_page
+                .view()
+                .map(Message::ProjectManagerPage),
+            Some(Page::DiceRoller) => widget::text::title1(fl!("dice-roller"))
                 .apply(widget::container)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .align_x(Horizontal::Center)
                 .align_y(Vertical::Center)
-                .into()
-            },
-            None => panic!("Invalid Page, if this happens you borked it real bad")
+                .into(),
+            None => panic!("Invalid Page, if this happens you borked it real bad"),
         }
     }
 
@@ -285,9 +245,46 @@ impl cosmic::Application for AppModel {
             }
 
             Message::ProjectManagerPage(page_message) => {
-                // Handle data operations here in app.rs, then update page state
-                // This keeps the page decoupled from data layer
-                return self.handle_project_manager_message(page_message);
+                let _ = self.project_manager_page.update(page_message.clone());
+                match page_message {
+                    ProjectManagerPageMessage::ToggleCreateProject => {
+                        self.toggle_context_page(ContextPage::NewProject);
+                    }
+                    _ => {}
+                }
+            }
+
+            Message::NewProjectPage(page_message) => {
+                let _ = self
+                    .project_manager_page
+                    .new_project_form
+                    .update(page_message.clone());
+                match page_message {
+                    NewProjectMessage::CreateProject(name, description) => {
+                        self.toggle_context_page(ContextPage::NewProject);
+
+                        // Check for database availability
+                        if !self.app_data.has_database() {
+                            eprintln!("Database not initialized, cannot create project");
+                            return Task::none();
+                        }
+
+                        // Perform the async project creation in background thread
+                        let app_data = self.app_data.clone();
+                        return Task::perform(
+                            async move { app_data.create_project(name, description).await },
+                            |result| {
+                                cosmic::Action::App(Message::ProjectManagerPage(
+                                    ProjectManagerPageMessage::ProjectCreated(result.into()),
+                                ))
+                            },
+                        );
+                    }
+                    NewProjectMessage::Cancel => {
+                        self.toggle_context_page(ContextPage::NewProject);
+                    }
+                    _ => {}
+                }
             }
 
             Message::OpenRepositoryUrl => {
@@ -325,6 +322,7 @@ impl cosmic::Application for AppModel {
 }
 
 impl AppModel {
+    /// The new project form for the context drawer
     /// The about page for this app.
     pub fn about(&'_ self) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
@@ -379,93 +377,46 @@ impl AppModel {
         self.nav.data::<Page>(self.nav.active()).cloned()
     }
 
+    fn toggle_context_page(&mut self, page: ContextPage) {
+        if self.context_page == page {
+            // Close the context drawer if the toggled context page is the same.
+            self.core.window.show_context = !self.core.window.show_context;
+        } else {
+            // Open the context drawer to display the requested context page.
+            self.context_page = page;
+            self.core.window.show_context = true;
+        }
+    }
+
     // Helper method for loading page data if needed
     fn load_page_data(&self) -> Task<cosmic::Action<Message>> {
         // Note: Match statements are more verbose but easier to extend later than chain if lets
         match self.active_page() {
             Some(Page::OCGenerator) => {
                 // Convert the page message to app message and trigger loading
-                Task::done(cosmic::Action::App(Message::OcGeneratorPage(oc_generator::Message::LoadData)))
+                Task::done(cosmic::Action::App(Message::OcGeneratorPage(
+                    OCPageMessage::LoadData,
+                )))
             }
             Some(Page::ProjectManager) => {
-                // Project manager needs to load projects from database
-                Task::done(cosmic::Action::App(Message::ProjectManagerPage(project_manager::Message::LoadData)))
-            }
-            _ => Task::none()
-        }
-    }
-
-    // Handle Project Manager messages - this is where data operations happen!
-    fn handle_project_manager_message(
-        &mut self,
-        message: project_manager::Message,
-    ) -> Task<cosmic::Action<Message>> {
-        use project_manager::Message as PM; //Note: Useful to avoid naming conflicts. I dislike managing crates thus far tbh
-
-        match message {
-            PM::LoadData => {
-                // Trigger async data load from AppData
-                let app_data = self.app_data.clone();  // TODO: We need to make AppData cloneable
-                Task::perform(
-                    async move {
-                        app_data.load_projects().await
-                            .map_err(|e| e.to_string())
+                if !self.app_data.has_database() {
+                    eprintln!("Database not initialized, cannot load projects");
+                    return Task::none();
+                }
+                
+                let app_data = self.app_data.clone();
+                return Task::perform(
+                    async move { app_data.load_projects().await },
+                    |result| {
+                        cosmic::Action::App(Message::ProjectManagerPage(
+                            ProjectManagerPageMessage::DataLoaded(result.into()),
+                        ))
                     },
-                    |result| cosmic::Action::App(Message::ProjectManagerPage(PM::ProjectsLoaded(result)))
-                )
+                );
             }
-
-            // PM::CreateProject(name, description) => {
-            //     // Trigger async project creation
-            //     let app_data = self.app_data.clone();
-            //     Task::perform(
-            //         async move {
-            //             app_data.create_project(name, description).await
-            //                 .map_err(|e| e.to_string())
-            //         },
-            //         |result| cosmic::Action::App(Message::ProjectManagerPage(PM::ProjectCreated(result)))
-            //     )
-            // }
-
-            // PM::DeleteProject(id) => {
-            //     // Trigger async project deletion
-            //     let app_data = self.app_data.clone();
-            //     Task::perform(
-            //         async move {
-            //             app_data.delete_project(id).await
-            //                 .map_err(|e| e.to_string())
-            //         },
-            //         |result| cosmic::Action::App(Message::ProjectManagerPage(PM::ProjectDeleted(result)))
-            //     )
-            // }
-
-            // All other messages just update UI state - delegate to page
-            _ => {
-                self.project_manager_page.update(message);
-                Task::none()
-            }
+            _ => Task::none(),
         }
     }
-}
-
-/// The page to display in the application.
-#[derive(Clone)]
-pub enum Page {
-    OCGenerator,
-    ProjectManager,
-    DiceRoller,
-}
-
-/// The context page to display in the context drawer.
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
-pub enum ContextPage {
-    #[default]
-    About,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MenuAction {
-    About,
 }
 
 impl menu::action::MenuAction for MenuAction {

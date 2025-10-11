@@ -1,17 +1,33 @@
-app-title = CosmiKit
-about = About
 view = View
-welcome = Welcome to COSMIC! ✨
 page-id = Page { $num }
 git-description = Git commit {$hash} on {$date}
+
+<#-- Titles and headings -->
+app-title = CosmiKit
+welcome = Welcome to COSMIC! ✨
+about = About
 oc-generator = OC Generator
 project-manager = Project manager
+new-project = New Project
 dice-roller = Dice Roller
+
+<#-- Buttons and labels -->
+project-name = Project Name
+project-description = Description (optional)
+create-project = Create
+cancel = Cancel
 oc-placeholder = Click to generate a revolutionary OC!
 generate-button = Generate!
-save-button = Save OC
+save-button = Save
 saved-message = { $num } saved characters
 favorites = Favorites
+
+<#-- Toast notifications -->
+project-created = Project Created
+project-deleted = Project Deleted
+error = Error
+
+<#-- OC Generator attributes -->
 attribute-short = short
 attribute-tall = tall
 attribute-fat = fat

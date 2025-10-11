@@ -12,10 +12,10 @@ pub type Time = i64; // Unix epoch timestamp, my preferred database time format
 /// Project data structure
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Project {
-    pub id: i64,
+    pub id: ProjectId,
     pub name: String,
     pub description: Option<String>,  //Note: Use Option for nullable fields
-    pub created_at: i64,
+    pub created_at: Time,
 }
 
 /// Tag for categorizing projects
@@ -48,7 +48,7 @@ pub struct Feature {
 pub trait ProjectDatabase: Send + Sync {
     // Project CRUD
     async fn create_project(&mut self, name: String, description: Option<String>) -> Result<Project>;
-    async fn get_all_projects(&self) -> Result<Vec<(Project, ProjectTags, ProjectFeatures)>>;
+    async fn get_all_projects(&self) -> Result<Vec<ProjectJoin>>;
     async fn delete_project(&mut self, id: i64) -> Result<()>;
     
     // Tag management

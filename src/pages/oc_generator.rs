@@ -4,29 +4,16 @@
 //!
 //! A fun tool for creating random character concepts for furries, gamers, and creative folks!
 
-use crate::config::{SavedCharactersConfig, CONFIG_KEY};
+use crate::application::app_data::SavedOC;
 use crate::fl;
 use cosmic::cosmic_config::{Config, ConfigGet, ConfigSet, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::Length;
 use cosmic::widget::{self, column, icon, row, text};
-use cosmic::{cosmic_theme, prelude::*, theme};
+use cosmic::{cosmic_theme, prelude::*, theme, Action, Element, Task};
 
-/// Messages that the OC Generator page can emit
-#[derive(Debug, Clone)]
-pub enum Message {
-    // Think in terms of current tense actions
-    LoadData,
-    GenerateButtonClicked,
-    SaveButtonClicked,
-    DeleteCharacter(usize), // Note: In rust, indexes are always of type usize
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SavedOC {
-    pub text: String,
-    pub created_at: u64,
-}
+use crate::config::{SavedCharactersConfig, CONFIG_KEY};
+use crate::pages::OCPageMessage as Message;
 
 // impl Default for Message {
 //     fn default() -> Self {
@@ -53,6 +40,7 @@ impl Default for OcGeneratorPage {
 }
 
 impl OcGeneratorPage {
+
     /// Create the view for this page
     pub fn view(&'_ self) -> Element<'_, Message> {
         // Build the UI here!
@@ -114,6 +102,43 @@ impl OcGeneratorPage {
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
+    }
+
+    /// Handle messages for this page
+    pub fn update(&mut self, message: Message) -> Task<Action<Message>> {
+        match message {
+            Message::LoadData => {
+                if !self.is_loaded {
+                    self.load_characters().unwrap_or_else(|e| {
+                        eprintln!("Unexpected error loading characters: {:?}", e);
+                    });
+                }
+            }
+            Message::GenerateButtonClicked => self.oc_text = Some(self.generate()),
+            Message::SaveButtonClicked => {
+                if let Some(oc) = &self.oc_text {
+                    let new_saved = SavedOC::new(oc.clone());
+                    self.saved_characters.push(new_saved);
+                    if let Err(e) = self.save_characters() {
+                        eprintln!("Error saving characters: {:?}", e);
+                    } else {
+                        //Todo: show message to user
+                        println!("Saved characters successfully!");
+                    }
+                }
+            }
+            Message::DeleteCharacter(index) => {
+                if let Err(e) = self.delete_character_at_index(index) {
+                    eprintln!("Error saving characters: {:?}", e);
+                    let _ = self.load_characters();
+                } else {
+                    // Todo: show message to user
+                    print!("Character removed");
+                }
+            }
+        }
+
+        cosmic::Task::none()
     }
 
     fn view_header(&self, space_xxs: f32) -> Element<'_, Message> {
@@ -197,46 +222,6 @@ impl OcGeneratorPage {
             .width(Length::Fill)
             // .padding(space_xs)
             .into()
-    }
-
-    /// Handle messages for this page
-    pub fn update(&mut self, message: Message) -> cosmic::Task<cosmic::Action<Message>> {
-        match message {
-            Message::LoadData => {
-                if !self.is_loaded {
-                    self.load_characters().unwrap_or_else(|e| {
-                        eprintln!("Unexpected error loading characters: {:?}", e);
-                    });
-                }
-            }
-            Message::GenerateButtonClicked => self.oc_text = Some(self.generate()),
-            Message::SaveButtonClicked => {
-                if let Some(oc) = &self.oc_text {
-                    let new_saved = SavedOC {
-                        text: oc.clone(),
-                        created_at: chrono::Utc::now().timestamp_millis() as u64,
-                    };
-                    self.saved_characters.push(new_saved);
-                    if let Err(e) = self.save_characters() {
-                        eprintln!("Error saving characters: {:?}", e);
-                    } else {
-                        //Todo: show message to user
-                        println!("Saved characters successfully!");
-                    }
-                }
-            }
-            Message::DeleteCharacter(index) => {
-                if let Err(e) = self.delete_character_at_index(index) {
-                    eprintln!("Error saving characters: {:?}", e);
-                    let _ = self.load_characters();
-                } else {
-                    // Todo: show message to user
-                    print!("Character removed");
-                }
-            }
-        }
-
-        cosmic::Task::none()
     }
 
     /// Save the currently generated OC to favorites

@@ -5,7 +5,7 @@
 //! This module acts as a repository/service layer between the UI and the database.
 //! Pages emit messages, AppModel delegates to AppData, AppData handles the actual work.
 
-use crate::database::{Project, Tag, Feature, ProjectDatabase, SqliteDatabase, ProjectTags, ProjectFeatures};
+use crate::database::{Feature, Project, ProjectDatabase, ProjectJoin, SqliteDatabase, Tag};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
@@ -62,7 +62,7 @@ impl AppData {
     // Project Manager Data Operations
 
     /// Load all projects with their tags and features
-    pub async fn load_projects(&self) -> Result<Vec<(Project, ProjectTags, ProjectFeatures)>> {
+    pub async fn load_projects(&self) -> Result<Vec<ProjectJoin>> {
         match &self.db {
             Some(db) => db.get_all_projects().await,
             None => Err(anyhow::anyhow!("Database not initialized")),
