@@ -30,7 +30,6 @@ pub enum ProjectManagerPageMessage {
     LoadData,
     DataLoaded(Arc<Result<Vec<ProjectJoin>, Error>>),
     ToggleCreateProject,
-    CreateProject(String, Option<String>),
     EditProject(i64),  // Open edit form for project
     ProjectLoadedForEdit(Arc<Result<ProjectJoin, Error>>),  // Project data loaded for editing
     DeleteProject(i64),

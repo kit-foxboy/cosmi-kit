@@ -68,21 +68,6 @@ impl NewProjectPage {
         self.editing_project_id.is_some()
     }
     
-    /// Get the project ID being edited (if any)
-    pub fn editing_project_id(&self) -> Option<i64> {
-        self.editing_project_id
-    }
-    
-    /// Get tags that were removed during editing
-    pub fn removed_tags(&self) -> &[String] {
-        &self.removed_tags
-    }
-    
-    /// Get features that were removed during editing
-    pub fn removed_features(&self) -> &[String] {
-        &self.removed_features
-    }
-    
     /// Get only the NEW tags (ones not in the original list)
     pub fn new_tags(&self) -> Vec<String> {
         self.tags.iter()
@@ -142,11 +127,6 @@ impl NewProjectPage {
         self.removed_features.clear();
         
         // Keep existing_tags for future autocomplete
-    }
-    
-    /// Set the list of existing tags from database (for autocomplete)
-    pub fn set_existing_tags(&mut self, tags: Vec<String>) {
-        self.existing_tags = tags;
     }
     
     /// Find autocomplete suggestion based on current input
@@ -419,7 +399,6 @@ impl NewProjectPage {
             Message::LoadExistingTags(tags) => {
                 // Load existing tag names for autocomplete
                 self.existing_tags = tags.iter().map(|t| t.name.clone()).collect();
-                eprintln!("Loaded {} existing tags for autocomplete", self.existing_tags.len());
             }
             Message::Cancel => {
                 self.name.clear();

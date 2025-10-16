@@ -302,14 +302,6 @@ impl ProjectDatabase for SqliteDatabase {
         
         Ok(tags)
     }
-    async fn remove_tag_from_project(&mut self, project_id: i64, tag_id: i64) -> Result<()> {
-        sqlx::query("DELETE FROM project_tags WHERE project_id = ? AND tag_id = ?")
-            .bind(project_id)
-            .bind(tag_id)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
     
     async fn remove_tags_by_name(&mut self, project_id: i64, tag_names: Vec<String>) -> Result<()> {
         let mut tx = self.pool.begin().await?;

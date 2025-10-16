@@ -26,13 +26,6 @@ pub struct Tag {
     pub color: Option<String>,  // Optional hex color
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
-pub struct ProjectTag {
-    pub id: i64,
-    pub project_id: i64,
-    pub tag_id: i64
-}
-
 /// Project feature/task
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Feature {
@@ -56,7 +49,6 @@ pub trait ProjectDatabase: Send + Sync {
     // Tag management
     async fn create_tags(&mut self, project_id: ProjectId, names: Vec<String>) -> Result<Vec<Tag>>;
     async fn get_all_tags(&self) -> Result<Vec<Tag>>;
-    async fn remove_tag_from_project(&mut self, project_id: i64, tag_id: i64) -> Result<()>;
     async fn remove_tags_by_name(&mut self, project_id: i64, tag_names: Vec<String>) -> Result<()>;
 
     // Feature management

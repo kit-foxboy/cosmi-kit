@@ -1,12 +1,12 @@
-use crate::pages::context_pages::NewProjectMessage;
 // SPDX-License-Identifier: MPL-2.0
+use crate::pages::context_pages::NewProjectMessage;
 use crate::{fl, pages::*};
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::widget::{self, icon};
-use cosmic::{cosmic_config, cosmic_theme, prelude::*, theme};
+use cosmic::{cosmic_config, cosmic_theme, prelude::*, theme, Action, Task};
 use futures_util::SinkExt;
 use std::collections::HashMap;
 
@@ -98,7 +98,7 @@ impl cosmic::Application for AppModel {
         // The connection pool will be stored in AppModel and reused!
         tasks.push(Task::perform(
             async move { SqliteDatabase::new().await.map_err(|e| e.to_string()) },
-            |result| cosmic::Action::App(Message::DatabaseInitialized(result)),
+            |result| Action::App(Message::DatabaseInitialized(result)),
         ));
 
         // Note: We DON'T load page data here because database isn't ready yet!
@@ -262,13 +262,13 @@ impl cosmic::Application for AppModel {
                                 async move { app_data.get_all_tags().await },
                                 |result| {
                                     match result {
-                                        Ok(tags) => cosmic::Action::App(Message::NewProjectPage(
+                                        Ok(tags) => Action::App(Message::NewProjectPage(
                                             NewProjectMessage::LoadExistingTags(tags)
                                         )),
                                         Err(e) => {
                                             eprintln!("Failed to load tags: {}", e);
                                             // Just return a no-op, form will work without autocomplete
-                                            cosmic::Action::App(Message::SubscriptionChannel)
+                                            Action::App(Message::SubscriptionChannel)
                                         }
                                     }
                                 },
@@ -282,7 +282,7 @@ impl cosmic::Application for AppModel {
                             return Task::perform(
                                 async move { app_data.get_project(project_id).await },
                                 |result| {
-                                    cosmic::Action::App(Message::ProjectManagerPage(
+                                    Action::App(Message::ProjectManagerPage(
                                         ProjectManagerPageMessage::ProjectLoadedForEdit(result.into())
                                     ))
                                 },
@@ -321,12 +321,12 @@ impl cosmic::Application for AppModel {
                                         async move { app_data.get_all_tags().await },
                                         |result| {
                                             match result {
-                                                Ok(tags) => cosmic::Action::App(Message::NewProjectPage(
+                                                Ok(tags) => Action::App(Message::NewProjectPage(
                                                     NewProjectMessage::LoadExistingTags(tags)
                                                 )),
                                                 Err(e) => {
                                                     eprintln!("Failed to load tags: {}", e);
-                                                    cosmic::Action::App(Message::SubscriptionChannel)
+                                                    Action::App(Message::SubscriptionChannel)
                                                 }
                                             }
                                         },
@@ -368,7 +368,7 @@ impl cosmic::Application for AppModel {
                                         Ok(())
                                     },
                                     |result: Result<(), anyhow::Error>| {
-                                        cosmic::Action::App(Message::ProjectManagerPage(
+                                        Action::App(Message::ProjectManagerPage(
                                             ProjectManagerPageMessage::TagCreated(result.map(|_| vec![]).into()),
                                         ))
                                     },
@@ -380,20 +380,19 @@ impl cosmic::Application for AppModel {
                         // Tags have been created and linked to the project
                         // Clear the form and reload project list
                         match result.as_ref() {
-                            Ok(tags) => {
-                                eprintln!("Successfully created {} tags", tags.len());
+                            Ok(_) => {
                                 self.project_manager_page.new_project_form.reset();
                                 return self.load_page_data(); // Refresh the project list
                             }
-                            Err(e) => {
-                                eprintln!("Failed to create tags: {}", e);
+                            Err(_e) => {
+                                // Silently fail - form will remain open for retry
                             }
                         }
                     }
                     ProjectManagerPageMessage::ToggleFeatureCompleted(feature_id) => {
                         // Toggle feature completion status
                         let app_data = self.app_data.clone();
-                        return cosmic::Task::perform(
+                        return Task::perform(
                             async move {
                                 if !app_data.has_database() {
                                     return Err(anyhow::anyhow!("Database not initialized"));
@@ -401,7 +400,7 @@ impl cosmic::Application for AppModel {
                                 app_data.toggle_feature_completed(feature_id).await
                             },
                             move |result| {
-                                cosmic::Action::App(Message::ProjectManagerPage(
+                                Action::App(Message::ProjectManagerPage(
                                     ProjectManagerPageMessage::FeatureToggled(result.into()),
                                 ))
                             },
@@ -414,7 +413,7 @@ impl cosmic::Application for AppModel {
                     ProjectManagerPageMessage::DeleteProject(project_id) => {
                         // Delete project from database
                         let app_data = self.app_data.clone();
-                        return cosmic::Task::perform(
+                        return Task::perform(
                             async move {
 
                                 if !app_data.has_database() {
@@ -425,7 +424,7 @@ impl cosmic::Application for AppModel {
                                 app_data.delete_project(project_id).await
                             },
                             move |result| {
-                                cosmic::Action::App(Message::ProjectManagerPage(
+                                Action::App(Message::ProjectManagerPage(
                                     ProjectManagerPageMessage::ProjectDeleted(result.into()),
                                 ))
                             },
@@ -436,11 +435,10 @@ impl cosmic::Application for AppModel {
                         // Reload the project list to reflect the deletion
                         match result.as_ref() {
                             Ok(_) => {
-                                eprintln!("Successfully deleted project");
                                 return self.load_page_data(); // Refresh the project list
                             }
-                            Err(e) => {
-                                eprintln!("Failed to delete project: {}", e);
+                            Err(_e) => {
+                                // Silently fail - toast will show error
                             }
                         }
                     }
@@ -469,7 +467,7 @@ impl cosmic::Application for AppModel {
                         return Task::perform(
                             async move { app_data.create_project(name, description).await },
                             |result| {
-                                cosmic::Action::App(Message::ProjectManagerPage(
+                                Action::App(Message::ProjectManagerPage(
                                     ProjectManagerPageMessage::ProjectCreated(result.into()),
                                 ))
                             },
@@ -515,7 +513,7 @@ impl cosmic::Application for AppModel {
                                 Ok(project_result)
                             },
                             |result| {
-                                cosmic::Action::App(Message::ProjectManagerPage(
+                                Action::App(Message::ProjectManagerPage(
                                     ProjectManagerPageMessage::ProjectCreated(result.into()),
                                 ))
                             },
@@ -635,7 +633,7 @@ impl AppModel {
         match self.active_page() {
             Some(Page::OCGenerator) => {
                 // Convert the page message to app message and trigger loading
-                Task::done(cosmic::Action::App(Message::OcGeneratorPage(
+                Task::done(Action::App(Message::OcGeneratorPage(
                     OCPageMessage::LoadData,
                 )))
             }
@@ -649,7 +647,7 @@ impl AppModel {
                 return Task::perform(
                     async move { app_data.load_projects().await },
                     |result| {
-                        cosmic::Action::App(Message::ProjectManagerPage(
+                        Action::App(Message::ProjectManagerPage(
                             ProjectManagerPageMessage::DataLoaded(result.into()),
                         ))
                     },

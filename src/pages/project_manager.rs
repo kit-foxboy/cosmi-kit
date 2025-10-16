@@ -314,10 +314,6 @@ impl ProjectManagerPage {
                     }
                 }
             }
-            Message::CreateProject(_name, _description) => {
-                self.is_loading = true;
-                // AppModel handles the actual async creation
-            }
             Message::EditProject(_id) => {
                 // AppModel handles loading project data and opening the edit form
             }
@@ -390,28 +386,3 @@ impl ProjectManagerPage {
         Task::none()
     }
 }
-
-// impl ProjectManagerPage {
-//     pub fn context_drawer(&'_ self) -> Option<ContextDrawer<'_, Message>> {
-//         if let Some(context_page) = &self.context_page {
-//             let content = match context_page {
-//                 ContextPage::NewProject => self.new_project_form.view(),
-//                 // Add other context pages here as needed
-//                 _ => return None,
-//             };
-//             Some(context_drawer::context_drawer(
-//                 content,
-//                 Message::ToggleContextDrawer(None), // Close drawer on outside click
-//             ).title(self.new_project_form.title.clone())
-//             )
-//         } else {
-//             None
-//         }
-//     }
-//     // Helper methods for UI logic
-
-//     // TODO: Add more helper methods as needed
-//     // - fn completed_features_count(&self, project_id: i64) -> usize
-//     // - fn project_by_id(&self, id: i64) -> Option<&Project>
-//     // - fn format_project_summary(&self, project: &Project) -> String
-// }
