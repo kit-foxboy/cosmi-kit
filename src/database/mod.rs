@@ -49,19 +49,20 @@ pub trait ProjectDatabase: Send + Sync {
     // Project CRUD
     async fn create_project(&mut self, name: String, description: Option<String>) -> Result<Project>;
     async fn get_all_projects(&self) -> Result<Vec<ProjectJoin>>;
+    async fn get_project_by_id(&self, id: i64) -> Result<ProjectJoin>;
+    async fn update_project(&mut self, id: i64, name: String, description: Option<String>) -> Result<Project>;
     async fn delete_project(&mut self, id: i64) -> Result<()>;
     
     // Tag management
-    async fn create_tag(&mut self, name: String) -> Result<Tag>;
+    async fn create_tags(&mut self, project_id: ProjectId, names: Vec<String>) -> Result<Vec<Tag>>;
     async fn get_all_tags(&self) -> Result<Vec<Tag>>;
-    async fn get_project_tags(&self, project_id: i64) -> Result<Vec<Tag>>;
-    async fn add_tag_to_project(&mut self, project_id: i64, tag_id: i64) -> Result<()>;
     async fn remove_tag_from_project(&mut self, project_id: i64, tag_id: i64) -> Result<()>;
+    async fn remove_tags_by_name(&mut self, project_id: i64, tag_names: Vec<String>) -> Result<()>;
 
     // Feature management
     async fn add_feature(&mut self, project_id: i64, description: String) -> Result<Feature>;
-    async fn get_project_features(&self, project_id: i64) -> Result<Vec<Feature>>;
-    async fn remove_feature(&mut self, feature_id: i64) -> Result<()>;
+    async fn remove_features_by_description(&mut self, project_id: i64, descriptions: Vec<String>) -> Result<()>;
+    async fn toggle_feature_completed(&mut self, feature_id: i64) -> Result<bool>;
 }
 
 // Re-export SQLite implementation

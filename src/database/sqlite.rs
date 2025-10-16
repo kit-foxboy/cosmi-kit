@@ -1,8 +1,42 @@
 use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use anyhow::Result;
 
-use crate::database::{ProjectDatabase, ProjectJoin};
+use crate::database::{ProjectDatabase, ProjectId, ProjectJoin};
 use super::{Project, Tag, Feature};
+
+/// Generate a random pastel color in hex format
+/// Using HSL color space: H=random, S=70%, L=75% for nice pastel colors
+fn generate_random_color() -> String {
+    let hue: u16 = fastrand::u16(0..360);
+    
+    // Convert HSL to RGB for a nice pastel color
+    // S=0.7 (70% saturation), L=0.75 (75% lightness)
+    let (r, g, b) = hsl_to_rgb(hue as f32 / 360.0, 0.7, 0.75);
+    
+    format!("#{:02X}{:02X}{:02X}", r, g, b)
+}
+
+/// Convert HSL to RGB
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+    
+    let (r, g, b) = match (h * 6.0) as u8 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    
+    (
+        ((r + m) * 255.0) as u8,
+        ((g + m) * 255.0) as u8,
+        ((b + m) * 255.0) as u8,
+    )
+}
 
 // Database versioning - increment when schema changes
 const DB_VERSION: &str = "1";
@@ -130,33 +164,225 @@ impl ProjectDatabase for SqliteDatabase {
         
         Ok(result)
     }
+    
+    async fn get_project_by_id(&self, id: i64) -> Result<ProjectJoin> {
+        // Get the project
+        let project = sqlx::query_as::<_, Project>(
+            "SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?"
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await?;
+        
+        // Get tags for this project
+        let tags = sqlx::query_as::<_, Tag>(
+            r#"
+            SELECT t.id, t.name, t.color, t.created_at
+            FROM tags t
+            INNER JOIN project_tags pt ON t.id = pt.tag_id
+            WHERE pt.project_id = ?
+            "#
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await?;
+        
+        // Get features for this project
+        let features = sqlx::query_as::<_, Feature>(
+            "SELECT id, project_id, description, completed, created_at 
+             FROM features 
+             WHERE project_id = ?
+             ORDER BY created_at DESC"
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await?;
+        
+        let mut project_join = ProjectJoin::new();
+        project_join.insert(id, (project, tags, features));
+        
+        Ok(project_join)
+    }
+    
+    async fn update_project(&mut self, id: i64, name: String, description: Option<String>) -> Result<Project> {
+        // Update the project
+        sqlx::query(
+            "UPDATE projects SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        )
+        .bind(&name)
+        .bind(&description)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        
+        // Fetch and return the updated project
+        let project = sqlx::query_as::<_, Project>(
+            "SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?"
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await?;
+        
+        Ok(project)
+    }
+    
     async fn delete_project(&mut self, _id: i64) -> Result<()> {
-        todo!("Implement delete_project")
+        let _result = sqlx::query(
+            "DELETE FROM projects WHERE id = ?"
+        )
+        .bind(_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
-    async fn create_tag(&mut self, _name: String) -> Result<Tag> {
-        todo!("Implement create_tag")
+    async fn create_tags(&mut self, project_id: ProjectId, names: Vec<String>) -> Result<Vec<Tag>> {
+        // Use a transaction to ensure atomicity
+        let mut tx = self.pool.begin().await?;
+        
+        let mut tags = Vec::new();
+        for name in names {
+            // Check if tag already exists (tags are reusable across projects)
+            let existing_tag: Option<Tag> = sqlx::query_as::<_, Tag>(
+                "SELECT id, name, color FROM tags WHERE name = ?"
+            )
+            .bind(&name)
+            .fetch_optional(&mut *tx)
+            .await?;
+            
+            let tag = if let Some(tag) = existing_tag {
+                // Tag exists, just link it to the project
+                tag
+            } else {
+                // Create new tag with random color
+                let color = generate_random_color();
+                sqlx::query_as::<_, Tag>(
+                    "INSERT INTO tags (name, color) VALUES (?, ?) RETURNING id, name, color"
+                )
+                .bind(&name)
+                .bind(&color)
+                .fetch_one(&mut *tx)
+                .await?
+            };
+            
+            // Check if this tag is already linked to the project
+            let existing_link: Option<(i64,)> = sqlx::query_as(
+                "SELECT project_id FROM project_tags WHERE project_id = ? AND tag_id = ?"
+            )
+            .bind(project_id)
+            .bind(tag.id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            
+            // Only insert the link if it doesn't already exist
+            if existing_link.is_none() {
+                sqlx::query(
+                    "INSERT INTO project_tags (project_id, tag_id) VALUES (?, ?)"
+                )
+                .bind(project_id)
+                .bind(tag.id)
+                .execute(&mut *tx)
+                .await?;
+            }
+            
+            tags.push(tag);
+        }
+        
+        // Commit transaction
+        tx.commit().await?;
+        Ok(tags)
     }
     async fn get_all_tags(&self) -> Result<Vec<Tag>> {
-        todo!("Implement get_all_tags")
+        let tags = sqlx::query_as::<_, Tag>(
+            "SELECT id, name, color FROM tags ORDER BY name ASC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        
+        Ok(tags)
     }
-    async fn get_project_tags(&self, _project_id: i64) -> Result<Vec<Tag>> {
-        todo!("Implement get_project_tags")
+    async fn remove_tag_from_project(&mut self, project_id: i64, tag_id: i64) -> Result<()> {
+        sqlx::query("DELETE FROM project_tags WHERE project_id = ? AND tag_id = ?")
+            .bind(project_id)
+            .bind(tag_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
-    async fn add_tag_to_project(&mut self, _project_id: i64, _tag_id: i64) -> Result<()> {
-        todo!("Implement add_tag_to_project")
-    }
-    async fn remove_tag_from_project(&mut self, _project_id: i64, _tag_id: i64) -> Result<()> {
-        todo!("Implement remove_tag_from_project")
+    
+    async fn remove_tags_by_name(&mut self, project_id: i64, tag_names: Vec<String>) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        
+        for tag_name in tag_names {
+            // Find the tag by name
+            let tag: Option<Tag> = sqlx::query_as::<_, Tag>(
+                "SELECT id, name, color FROM tags WHERE name = ?"
+            )
+            .bind(&tag_name)
+            .fetch_optional(&mut *tx)
+            .await?;
+            
+            if let Some(tag) = tag {
+                // Remove the link between project and tag
+                sqlx::query("DELETE FROM project_tags WHERE project_id = ? AND tag_id = ?")
+                    .bind(project_id)
+                    .bind(tag.id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+        
+        tx.commit().await?;
+        Ok(())
     }
 
-    async fn add_feature(&mut self, _project_id: i64, _description: String) -> Result<Feature> {
-        todo!("Implement add_feature")
+    async fn add_feature(&mut self, project_id: i64, description: String) -> Result<Feature> {
+        let feature = sqlx::query_as::<_, Feature>(
+            "INSERT INTO features (project_id, description, completed) VALUES (?, ?, 0) 
+             RETURNING id, project_id, description, completed, created_at"
+        )
+        .bind(project_id)
+        .bind(description)
+        .fetch_one(&self.pool)
+        .await?;
+        
+        Ok(feature)
     }
-    async fn get_project_features(&self, _project_id: i64) -> Result<Vec<Feature>> {
-        todo!("Implement get_project_features")
+    
+    async fn remove_features_by_description(&mut self, project_id: i64, descriptions: Vec<String>) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        
+        for description in descriptions {
+            // Delete features matching the project_id and description
+            sqlx::query("DELETE FROM features WHERE project_id = ? AND description = ?")
+                .bind(project_id)
+                .bind(&description)
+                .execute(&mut *tx)
+                .await?;
+        }
+        
+        tx.commit().await?;
+        Ok(())
     }
-    async fn remove_feature(&mut self, _feature_id: i64) -> Result<()> {
-        todo!("Implement remove_feature")
+    
+    async fn toggle_feature_completed(&mut self, feature_id: i64) -> Result<bool> {
+        // Toggle the completed status (flip from 0 to 1 or 1 to 0)
+        sqlx::query(
+            "UPDATE features SET completed = NOT completed WHERE id = ?"
+        )
+        .bind(feature_id)
+        .execute(&self.pool)
+        .await?;
+        
+        // Fetch and return the new completed status
+        let feature: Feature = sqlx::query_as(
+            "SELECT id, project_id, description, completed, created_at FROM features WHERE id = ?"
+        )
+        .bind(feature_id)
+        .fetch_one(&self.pool)
+        .await?;
+        
+        Ok(feature.completed)
     }
 }

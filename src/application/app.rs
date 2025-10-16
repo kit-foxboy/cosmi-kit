@@ -193,6 +193,7 @@ impl cosmic::Application for AppModel {
     /// Subscriptions are long-running async tasks running in the background which
     /// emit messages to the application through a channel. They are started at the
     /// beginning of the application, and persist through its lifetime.
+    /// Good example uses are to watch for configuration file changes or keyboard events.
     fn subscription(&self) -> Subscription<Self::Message> {
         struct MySubscription;
 
@@ -247,8 +248,201 @@ impl cosmic::Application for AppModel {
             Message::ProjectManagerPage(page_message) => {
                 let _ = self.project_manager_page.update(page_message.clone());
                 match page_message {
+                    ProjectManagerPageMessage::LoadData => {
+                        // Reload project data from database
+                        return self.load_page_data();
+                    }
                     ProjectManagerPageMessage::ToggleCreateProject => {
                         self.toggle_context_page(ContextPage::NewProject);
+                        
+                        // Load existing tags for autocomplete when opening the form
+                        if self.app_data.has_database() {
+                            let app_data = self.app_data.clone();
+                            return Task::perform(
+                                async move { app_data.get_all_tags().await },
+                                |result| {
+                                    match result {
+                                        Ok(tags) => cosmic::Action::App(Message::NewProjectPage(
+                                            NewProjectMessage::LoadExistingTags(tags)
+                                        )),
+                                        Err(e) => {
+                                            eprintln!("Failed to load tags: {}", e);
+                                            // Just return a no-op, form will work without autocomplete
+                                            cosmic::Action::App(Message::SubscriptionChannel)
+                                        }
+                                    }
+                                },
+                            );
+                        }
+                    }
+                    ProjectManagerPageMessage::EditProject(project_id) => {
+                        // Load the project data from database and open edit form
+                        if self.app_data.has_database() {
+                            let app_data = self.app_data.clone();
+                            return Task::perform(
+                                async move { app_data.get_project(project_id).await },
+                                |result| {
+                                    cosmic::Action::App(Message::ProjectManagerPage(
+                                        ProjectManagerPageMessage::ProjectLoadedForEdit(result.into())
+                                    ))
+                                },
+                            );
+                        }
+                    }
+                    ProjectManagerPageMessage::ProjectLoadedForEdit(result) => {
+                        // Project data loaded, populate the form and open context drawer
+                        match result.as_ref() {
+                            Ok(project_join) => {
+                                // Extract the project data (ProjectJoin is a HashMap with one entry)
+                                if let Some((_id, (project, tags, features))) = project_join.iter().next() {
+                                    // Convert tags and features to Vec<String>
+                                    let tag_names: Vec<String> = tags.iter()
+                                        .map(|t| t.name.clone())
+                                        .collect();
+                                    let feature_descriptions: Vec<String> = features.iter()
+                                        .map(|f| f.description.clone())
+                                        .collect();
+                                    
+                                    // Populate the form with existing data
+                                    self.project_manager_page.new_project_form.start_editing(
+                                        project.id,
+                                        project.name.clone(),
+                                        project.description.clone(),
+                                        tag_names.clone(),
+                                        feature_descriptions,
+                                    );
+                                    
+                                    // Open the context drawer
+                                    self.toggle_context_page(ContextPage::NewProject);
+                                    
+                                    // Load all tags for autocomplete
+                                    let app_data = self.app_data.clone();
+                                    return Task::perform(
+                                        async move { app_data.get_all_tags().await },
+                                        |result| {
+                                            match result {
+                                                Ok(tags) => cosmic::Action::App(Message::NewProjectPage(
+                                                    NewProjectMessage::LoadExistingTags(tags)
+                                                )),
+                                                Err(e) => {
+                                                    eprintln!("Failed to load tags: {}", e);
+                                                    cosmic::Action::App(Message::SubscriptionChannel)
+                                                }
+                                            }
+                                        },
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to load project for editing: {}", e);
+                            }
+                        }
+                    }
+                    ProjectManagerPageMessage::ProjectCreated(result) => {
+                        // After project is created, add tags and features
+                        // The tags and features are temporarily stored in the form until we get the project ID
+                        if let Ok(project) = result.as_ref() {
+                            let tags = self.project_manager_page.new_project_form.tags().to_vec();
+                            let features = self.project_manager_page.new_project_form.features().to_vec();
+                            let has_tags = !tags.is_empty();
+                            let has_features = !features.is_empty();
+                            
+                            if has_tags || has_features {
+                                let app_data = self.app_data.clone();
+                                let project_id = project.id;
+                                
+                                return Task::perform(
+                                    async move {
+                                        // Add tags first
+                                        if has_tags {
+                                            app_data.create_tags(project_id, tags).await?;
+                                        }
+                                        
+                                        // Then add features
+                                        if has_features {
+                                            for feature_desc in features {
+                                                app_data.add_feature(project_id, feature_desc).await?;
+                                            }
+                                        }
+                                        
+                                        Ok(())
+                                    },
+                                    |result: Result<(), anyhow::Error>| {
+                                        cosmic::Action::App(Message::ProjectManagerPage(
+                                            ProjectManagerPageMessage::TagCreated(result.map(|_| vec![]).into()),
+                                        ))
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    ProjectManagerPageMessage::TagCreated(result) => {
+                        // Tags have been created and linked to the project
+                        // Clear the form and reload project list
+                        match result.as_ref() {
+                            Ok(tags) => {
+                                eprintln!("Successfully created {} tags", tags.len());
+                                self.project_manager_page.new_project_form.reset();
+                                return self.load_page_data(); // Refresh the project list
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to create tags: {}", e);
+                            }
+                        }
+                    }
+                    ProjectManagerPageMessage::ToggleFeatureCompleted(feature_id) => {
+                        // Toggle feature completion status
+                        let app_data = self.app_data.clone();
+                        return cosmic::Task::perform(
+                            async move {
+                                if !app_data.has_database() {
+                                    return Err(anyhow::anyhow!("Database not initialized"));
+                                }
+                                app_data.toggle_feature_completed(feature_id).await
+                            },
+                            move |result| {
+                                cosmic::Action::App(Message::ProjectManagerPage(
+                                    ProjectManagerPageMessage::FeatureToggled(result.into()),
+                                ))
+                            },
+                        );
+                    }
+                    ProjectManagerPageMessage::FeatureToggled(_result) => {
+                        // Feature was toggled, reload the project list to show updated state
+                        return self.load_page_data();
+                    }
+                    ProjectManagerPageMessage::DeleteProject(project_id) => {
+                        // Delete project from database
+                        let app_data = self.app_data.clone();
+                        return cosmic::Task::perform(
+                            async move {
+
+                                if !app_data.has_database() {
+                                    eprintln!("Database not initialized, cannot delete project");
+                                    return Err(anyhow::anyhow!("Database not initialized"));
+                                }
+
+                                app_data.delete_project(project_id).await
+                            },
+                            move |result| {
+                                cosmic::Action::App(Message::ProjectManagerPage(
+                                    ProjectManagerPageMessage::ProjectDeleted(result.into()),
+                                ))
+                            },
+                        );
+                    }
+                    ProjectManagerPageMessage::ProjectDeleted(result) => {
+                        // Project has been deleted from database
+                        // Reload the project list to reflect the deletion
+                        match result.as_ref() {
+                            Ok(_) => {
+                                eprintln!("Successfully deleted project");
+                                return self.load_page_data(); // Refresh the project list
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to delete project: {}", e);
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -260,7 +454,7 @@ impl cosmic::Application for AppModel {
                     .new_project_form
                     .update(page_message.clone());
                 match page_message {
-                    NewProjectMessage::CreateProject(name, description) => {
+                    NewProjectMessage::CreateProject(name, description, _tags, _features) => {
                         self.toggle_context_page(ContextPage::NewProject);
 
                         // Check for database availability
@@ -269,10 +463,57 @@ impl cosmic::Application for AppModel {
                             return Task::none();
                         }
 
-                        // Perform the async project creation in background thread
+                        // Create the project first
+                        // Tags and features will be added in the ProjectCreated handler (guarantees we have project_id)
                         let app_data = self.app_data.clone();
                         return Task::perform(
                             async move { app_data.create_project(name, description).await },
+                            |result| {
+                                cosmic::Action::App(Message::ProjectManagerPage(
+                                    ProjectManagerPageMessage::ProjectCreated(result.into()),
+                                ))
+                            },
+                        );
+                    }
+                    NewProjectMessage::UpdateProject(project_id, name, description, tags, features, removed_tags, removed_features) => {
+                        self.toggle_context_page(ContextPage::NewProject);
+
+                        // Check for database availability
+                        if !self.app_data.has_database() {
+                            eprintln!("Database not initialized, cannot update project");
+                            return Task::none();
+                        }
+
+                        // Perform all update operations in parallel using Task batching
+                        let app_data = self.app_data.clone();
+                        
+                        return Task::perform(
+                            async move {
+                                // 1. Update the project basics
+                                let project_result = app_data.update_project(project_id, name, description).await?;
+                                
+                                // 2. Remove deleted tags
+                                if !removed_tags.is_empty() {
+                                    app_data.remove_tags(project_id, removed_tags).await?;
+                                }
+                                
+                                // 3. Remove deleted features  
+                                if !removed_features.is_empty() {
+                                    app_data.remove_features(project_id, removed_features).await?;
+                                }
+                                
+                                // 4. Add new tags (create_tags handles duplicates)
+                                if !tags.is_empty() {
+                                    app_data.create_tags(project_id, tags).await?;
+                                }
+                                
+                                // 5. Add new features
+                                for feature_desc in features {
+                                    app_data.add_feature(project_id, feature_desc).await?;
+                                }
+                                
+                                Ok(project_result)
+                            },
                             |result| {
                                 cosmic::Action::App(Message::ProjectManagerPage(
                                     ProjectManagerPageMessage::ProjectCreated(result.into()),

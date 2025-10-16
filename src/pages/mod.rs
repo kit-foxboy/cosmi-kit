@@ -31,8 +31,14 @@ pub enum ProjectManagerPageMessage {
     DataLoaded(Arc<Result<Vec<ProjectJoin>, Error>>),
     ToggleCreateProject,
     CreateProject(String, Option<String>),
+    EditProject(i64),  // Open edit form for project
+    ProjectLoadedForEdit(Arc<Result<ProjectJoin, Error>>),  // Project data loaded for editing
     DeleteProject(i64),
+    ToggleFeatureCompleted(i64),  // Toggle feature completion status by feature ID
+    FeatureToggled(Arc<Result<bool, Error>>),  // Feature toggle result
     ProjectCreated(Arc<Result<Project, Error>>),
+    ProjectDeleted(Arc<Result<(), Error>>),
+    TagCreated(Arc<Result<Vec<Tag>, Error>>),
     CloseToast(cosmic::widget::ToastId),  // Close a specific toast
 }
 

@@ -5,7 +5,7 @@
 //! This module acts as a repository/service layer between the UI and the database.
 //! Pages emit messages, AppModel delegates to AppData, AppData handles the actual work.
 
-use crate::database::{Feature, Project, ProjectDatabase, ProjectJoin, SqliteDatabase, Tag};
+use crate::database::{Feature, Project, ProjectDatabase, ProjectId, ProjectJoin, SqliteDatabase, Tag};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
@@ -69,12 +69,31 @@ impl AppData {
         }
     }
 
+    /// Get a single project by ID with its tags and features
+    pub async fn get_project(&self, id: i64) -> Result<ProjectJoin> {
+        match &self.db {
+            Some(db) => db.get_project_by_id(id).await,
+            None => Err(anyhow::anyhow!("Database not initialized")),
+        }
+    }
+
     /// Create a new project
     pub async fn create_project(&self, name: String, description: Option<String>) -> Result<Project> {
         match &self.db {
             Some(db) => {
                 let mut db = db.clone(); // Cheap clone of the pool
                 db.create_project(name, description).await
+            }
+            None => Err(anyhow::anyhow!("Database not initialized")),
+        }
+    }
+    
+    /// Update an existing project
+    pub async fn update_project(&self, id: i64, name: String, description: Option<String>) -> Result<Project> {
+        match &self.db {
+            Some(db) => {
+                let mut db = db.clone();
+                db.update_project(id, name, description).await
             }
             None => Err(anyhow::anyhow!("Database not initialized")),
         }
@@ -92,11 +111,11 @@ impl AppData {
     }
 
     /// Create a new tag
-    pub async fn create_tag(&self, name: String) -> Result<Tag> {
+    pub async fn create_tags(&self,project_id: ProjectId, names: Vec<String>) -> Result<Vec<Tag>> {
         match &self.db {
             Some(db) => {
                 let mut db = db.clone();
-                db.create_tag(name).await
+                db.create_tags(project_id, names).await
             }
             None => Err(anyhow::anyhow!("Database not initialized")),
         }
@@ -106,17 +125,6 @@ impl AppData {
     pub async fn get_all_tags(&self) -> Result<Vec<Tag>> {
         match &self.db {
             Some(db) => db.get_all_tags().await,
-            None => Err(anyhow::anyhow!("Database not initialized")),
-        }
-    }
-
-    /// Add a tag to a project
-    pub async fn add_tag_to_project(&self, project_id: i64, tag_id: i64) -> Result<()> {
-        match &self.db {
-            Some(db) => {
-                let mut db = db.clone();
-                db.add_tag_to_project(project_id, tag_id).await
-            }
             None => Err(anyhow::anyhow!("Database not initialized")),
         }
     }
@@ -131,11 +139,36 @@ impl AppData {
             None => Err(anyhow::anyhow!("Database not initialized")),
         }
     }
-
-    /// Get all features for a project
-    pub async fn get_project_features(&self, project_id: i64) -> Result<Vec<Feature>> {
+    
+    /// Remove tags from a project by name
+    pub async fn remove_tags(&self, project_id: i64, tag_names: Vec<String>) -> Result<()> {
         match &self.db {
-            Some(db) => db.get_project_features(project_id).await,
+            Some(db) => {
+                let mut db = db.clone();
+                db.remove_tags_by_name(project_id, tag_names).await
+            }
+            None => Err(anyhow::anyhow!("Database not initialized")),
+        }
+    }
+    
+    /// Remove features from a project by description
+    pub async fn remove_features(&self, project_id: i64, descriptions: Vec<String>) -> Result<()> {
+        match &self.db {
+            Some(db) => {
+                let mut db = db.clone();
+                db.remove_features_by_description(project_id, descriptions).await
+            }
+            None => Err(anyhow::anyhow!("Database not initialized")),
+        }
+    }
+    
+    /// Toggle a feature's completed status
+    pub async fn toggle_feature_completed(&self, feature_id: i64) -> Result<bool> {
+        match &self.db {
+            Some(db) => {
+                let mut db = db.clone();
+                db.toggle_feature_completed(feature_id).await
+            }
             None => Err(anyhow::anyhow!("Database not initialized")),
         }
     }

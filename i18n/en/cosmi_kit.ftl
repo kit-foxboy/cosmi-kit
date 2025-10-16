@@ -14,6 +14,7 @@ dice-roller = Dice Roller
 <#-- Buttons and labels -->
 project-name = Project Name
 project-description = Description (optional)
+tags-placeholder = Add tags (press space to add)
 create-project = Create
 cancel = Cancel
 oc-placeholder = Click to generate a revolutionary OC!
