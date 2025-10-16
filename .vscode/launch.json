@@ -1,0 +1,41 @@
+{
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug cosmi-kit",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=cosmi-kit",
+          "--package=cosmi-kit"
+        ],
+        "filter": {
+          "name": "cosmi-kit",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug cosmi-kit (release)",
+      "cargo": {
+        "args": [
+          "build",
+          "--release",
+          "--bin=cosmi-kit",
+          "--package=cosmi-kit"
+        ],
+        "filter": {
+          "name": "cosmi-kit",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
